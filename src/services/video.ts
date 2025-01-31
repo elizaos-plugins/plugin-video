@@ -1,21 +1,11 @@
-import {
-    type IAgentRuntime,
-    type ITranscriptionService,
-    type IVideoService,
-    type Media,
-    Service,
-    ServiceType,
-    stringToUuid,
-    elizaLogger,
-} from "@elizaos/core";
 import ffmpeg from "fluent-ffmpeg";
 import fs from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import youtubeDl from "youtube-dl-exec";
 
-export class VideoService extends Service implements IVideoService {
-    static serviceType: ServiceType = ServiceType.VIDEO;
+export class VideoService {
+    static serviceType = "VIDEO";
     private cacheKey = "content/video";
     private dataDir = "./content_cache";
 
@@ -23,15 +13,18 @@ export class VideoService extends Service implements IVideoService {
     private processing = false;
 
     constructor() {
-        super();
         this.ensureDataDirectoryExists();
     }
 
-    getInstance(): IVideoService {
+    static getInstance(): VideoService {
+        return new VideoService();
+    }
+
+    getInstance() {
         return VideoService.getInstance();
     }
 
-    async initialize(_runtime: IAgentRuntime): Promise<void> {}
+    async initialize(_runtime: any): Promise<void> {}
 
     private ensureDataDirectoryExists() {
         if (!fs.existsSync(this.dataDir)) {
@@ -64,7 +57,6 @@ export class VideoService extends Service implements IVideoService {
             });
             return outputFile;
         } catch (error) {
-            elizaLogger.log("Error downloading media:", error);
             throw new Error("Failed to download media");
         }
     }
@@ -87,15 +79,14 @@ export class VideoService extends Service implements IVideoService {
             });
             return outputFile;
         } catch (error) {
-            elizaLogger.log("Error downloading video:", error);
             throw new Error("Failed to download video");
         }
     }
 
     public async processVideo(
         url: string,
-        runtime: IAgentRuntime
-    ): Promise<Media> {
+        runtime: any
+    ): Promise<any> {
         this.queue.push(url);
         this.processQueue(runtime);
 
@@ -120,7 +111,7 @@ export class VideoService extends Service implements IVideoService {
         });
     }
 
-    private async processQueue(runtime): Promise<void> {
+    private async processQueue(runtime: any): Promise<void> {
         if (this.processing || this.queue.length === 0) {
             return;
         }
@@ -137,8 +128,8 @@ export class VideoService extends Service implements IVideoService {
 
     private async processVideoFromUrl(
         url: string,
-        runtime: IAgentRuntime
-    ): Promise<Media> {
+        runtime: any
+    ): Promise<any> {
         const videoId =
             url.match(
                 /(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/watch\?.+&v=))([^\/&?]+)/ // eslint-disable-line
@@ -146,20 +137,16 @@ export class VideoService extends Service implements IVideoService {
         const videoUuid = this.getVideoId(videoId);
         const cacheKey = `${this.cacheKey}/${videoUuid}`;
 
-        const cached = await runtime.cacheManager.get<Media>(cacheKey);
+        const cached = await runtime.cacheManager.get(cacheKey);
 
         if (cached) {
-            elizaLogger.log("Returning cached video file");
             return cached;
         }
 
-        elizaLogger.log("Cache miss, processing video");
-        elizaLogger.log("Fetching video info");
         const videoInfo = await this.fetchVideoInfo(url);
-        elizaLogger.log("Getting transcript");
         const transcript = await this.getTranscript(url, videoInfo, runtime);
 
-        const result: Media = {
+        const result: any = {
             id: videoUuid,
             url: url,
             title: videoInfo.title,
@@ -174,7 +161,14 @@ export class VideoService extends Service implements IVideoService {
     }
 
     private getVideoId(url: string): string {
-        return stringToUuid(url);
+        // Simple hash function instead of stringToUuid
+        let hash = 0;
+        for (let i = 0; i < url.length; i++) {
+            const char = url.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return Math.abs(hash).toString(36);
     }
 
     async fetchVideoInfo(url: string): Promise<any> {
@@ -190,7 +184,6 @@ export class VideoService extends Service implements IVideoService {
                     };
                 }
             } catch (error) {
-                elizaLogger.log("Error downloading MP4 file:", error);
                 // Fall back to using youtube-dl if direct download fails
             }
         }
@@ -210,7 +203,6 @@ export class VideoService extends Service implements IVideoService {
             });
             return result;
         } catch (error) {
-            elizaLogger.log("Error fetching video info:", error);
             throw new Error("Failed to fetch video information");
         }
     }
@@ -218,13 +210,11 @@ export class VideoService extends Service implements IVideoService {
     private async getTranscript(
         url: string,
         videoInfo: any,
-        runtime: IAgentRuntime
+        runtime: any
     ): Promise<string> {
-        elizaLogger.log("Getting transcript");
         try {
             // Check for manual subtitles
             if (videoInfo.subtitles && videoInfo.subtitles.en) {
-                elizaLogger.log("Manual subtitles found");
                 const srtContent = await this.downloadSRT(
                     videoInfo.subtitles.en[0].url
                 );
@@ -236,7 +226,6 @@ export class VideoService extends Service implements IVideoService {
                 videoInfo.automatic_captions &&
                 videoInfo.automatic_captions.en
             ) {
-                elizaLogger.log("Automatic captions found");
                 const captionUrl = videoInfo.automatic_captions.en[0].url;
                 const captionContent = await this.downloadCaption(captionUrl);
                 return this.parseCaption(captionContent);
@@ -247,23 +236,17 @@ export class VideoService extends Service implements IVideoService {
                 videoInfo.categories &&
                 videoInfo.categories.includes("Music")
             ) {
-                elizaLogger.log("Music video detected, no lyrics available");
                 return "No lyrics available.";
             }
 
             // Fall back to audio transcription
-            elizaLogger.log(
-                "No subtitles or captions found, falling back to audio transcription"
-            );
             return this.transcribeAudio(url, runtime);
         } catch (error) {
-            elizaLogger.log("Error in getTranscript:", error);
             throw error;
         }
     }
 
     private async downloadCaption(url: string): Promise<string> {
-        elizaLogger.log("Downloading caption from:", url);
         const response = await fetch(url);
         if (!response.ok) {
             throw new Error(
@@ -274,21 +257,18 @@ export class VideoService extends Service implements IVideoService {
     }
 
     private parseCaption(captionContent: string): string {
-        elizaLogger.log("Parsing caption");
         try {
             const jsonContent = JSON.parse(captionContent);
             if (jsonContent.events) {
                 return jsonContent.events
-                    .filter((event) => event.segs)
-                    .map((event) => event.segs.map((seg) => seg.utf8).join(""))
+                    .filter((event: any) => event.segs)
+                    .map((event: any) => event.segs.map((seg: any) => seg.utf8).join(""))
                     .join("")
                     .replace("\n", " ");
             } else {
-                elizaLogger.log("Unexpected caption format:", jsonContent);
                 return "Error: Unable to parse captions";
             }
         } catch (error) {
-            elizaLogger.log("Error parsing caption:", error);
             return "Error: Unable to parse captions";
         }
     }
@@ -302,16 +282,14 @@ export class VideoService extends Service implements IVideoService {
     }
 
     private async downloadSRT(url: string): Promise<string> {
-        elizaLogger.log("downloadSRT");
         const response = await fetch(url);
         return await response.text();
     }
 
     async transcribeAudio(
         url: string,
-        runtime: IAgentRuntime
+        runtime: any
     ): Promise<string> {
-        elizaLogger.log("Preparing audio for transcription...");
         const mp4FilePath = path.join(
             this.dataDir,
             `${this.getVideoId(url)}.mp4`
@@ -324,23 +302,16 @@ export class VideoService extends Service implements IVideoService {
 
         if (!fs.existsSync(mp3FilePath)) {
             if (fs.existsSync(mp4FilePath)) {
-                elizaLogger.log("MP4 file found. Converting to MP3...");
                 await this.convertMp4ToMp3(mp4FilePath, mp3FilePath);
             } else {
-                elizaLogger.log("Downloading audio...");
                 await this.downloadAudio(url, mp3FilePath);
             }
         }
 
-        elizaLogger.log(`Audio prepared at ${mp3FilePath}`);
-
         const audioBuffer = fs.readFileSync(mp3FilePath);
-        elizaLogger.log(`Audio file size: ${audioBuffer.length} bytes`);
-
-        elizaLogger.log("Starting transcription...");
         const startTime = Date.now();
-        const transcriptionService = runtime.getService<ITranscriptionService>(
-            ServiceType.TRANSCRIPTION
+        const transcriptionService = runtime.getService(
+            'TRANSCRIPTION'
         );
 
         if (!transcriptionService) {
@@ -349,11 +320,6 @@ export class VideoService extends Service implements IVideoService {
 
         const uintBuffer = new Uint8Array(audioBuffer).buffer;
         const transcript = await transcriptionService.transcribe(uintBuffer);
-
-        const endTime = Date.now();
-        elizaLogger.log(
-            `Transcription completed in ${(endTime - startTime) / 1000} seconds`
-        );
 
         // Don't delete the MP3 file as it might be needed for future use
         return transcript || "Transcription failed";
@@ -369,11 +335,9 @@ export class VideoService extends Service implements IVideoService {
                 .noVideo()
                 .audioCodec("libmp3lame")
                 .on("end", () => {
-                    elizaLogger.log("Conversion to MP3 complete");
                     resolve();
                 })
-                .on("error", (err) => {
-                    elizaLogger.log("Error converting to MP3:", err);
+                .on("error", (err: any) => {
                     reject(err);
                 })
                 .run();
@@ -384,16 +348,12 @@ export class VideoService extends Service implements IVideoService {
         url: string,
         outputFile: string
     ): Promise<string> {
-        elizaLogger.log("Downloading audio");
         outputFile =
             outputFile ??
             path.join(this.dataDir, `${this.getVideoId(url)}.mp3`);
 
         try {
             if (url.endsWith(".mp4") || url.includes(".mp4?")) {
-                elizaLogger.log(
-                    "Direct MP4 file detected, downloading and converting to MP3"
-                );
                 const tempMp4File = path.join(
                     tmpdir(),
                     `${this.getVideoId(url)}.mp4`
@@ -412,15 +372,12 @@ export class VideoService extends Service implements IVideoService {
                             fs.unlinkSync(tempMp4File);
                             resolve();
                         })
-                        .on("error", (err) => {
+                        .on("error", (err: any) => {
                             reject(err);
                         })
                         .run();
                 });
             } else {
-                elizaLogger.log(
-                    "YouTube video detected, downloading audio with youtube-dl"
-                );
                 await youtubeDl(url, {
                     verbose: true,
                     extractAudio: true,
@@ -431,7 +388,6 @@ export class VideoService extends Service implements IVideoService {
             }
             return outputFile;
         } catch (error) {
-            elizaLogger.log("Error downloading audio:", error);
             throw new Error("Failed to download audio");
         }
     }

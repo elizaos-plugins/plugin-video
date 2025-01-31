@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@types/fluent-ffmpeg':
+        specifier: ^2.1.27
+        version: 2.1.27
       ffmpeg-static:
         specifier: 5.2.0
         version: 5.2.0
@@ -315,6 +318,9 @@ packages:
 
   '@types/estree@1.0.6':
     resolution: {integrity: sha512-AYnb1nQyY49te+VRAVgmzfcgjYS91mY5P0TKUDCLEM+gNnA+3T6rWITXRLYCpahpqSQbN5cE+gHpnPyXjHWxcw==}
+
+  '@types/fluent-ffmpeg@2.1.27':
+    resolution: {integrity: sha512-QiDWjihpUhriISNoBi2hJBRUUmoj/BMTYcfz+F+ZM9hHWBYABFAE6hjP/TbCZC0GWwlpa3FzvHH9RzFeRusZ7A==}
 
   '@types/node@10.17.60':
     resolution: {integrity: sha512-F0KIgDJfy2nA3zMLmWGKxcH2ZVEtCZXHHdOQs2gSaQ27+lNeEfGxzkIw90aXswATX7AZ33tahPbzy6KAfUreVw==}
@@ -1039,6 +1045,10 @@ snapshots:
     optional: true
 
   '@types/estree@1.0.6': {}
+
+  '@types/fluent-ffmpeg@2.1.27':
+    dependencies:
+      '@types/node': 22.8.4
 
   '@types/node@10.17.60': {}
 
