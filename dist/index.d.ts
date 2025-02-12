@@ -2,7 +2,7 @@ declare const browserPlugin: {
     name: string;
     description: string;
     services: any[];
-    actions: never[];
+    actions: any[];
 };
 
 export { browserPlugin as default };

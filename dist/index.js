@@ -10,13 +10,14 @@ import fs from "fs";
 import { tmpdir } from "os";
 import path from "path";
 import youtubeDl from "youtube-dl-exec";
-var _VideoService = class _VideoService extends Service {
+var VideoService = class _VideoService extends Service {
+  static serviceType = ServiceType.VIDEO;
+  cacheKey = "content/video";
+  dataDir = "./content_cache";
+  queue = [];
+  processing = false;
   constructor() {
     super();
-    this.cacheKey = "content/video";
-    this.dataDir = "./content_cache";
-    this.queue = [];
-    this.processing = false;
     this.ensureDataDirectoryExists();
   }
   getInstance() {
@@ -104,10 +105,11 @@ var _VideoService = class _VideoService extends Service {
     this.processing = false;
   }
   async processVideoFromUrl(url, runtime) {
-    const videoId = url.match(
+    var _a;
+    const videoId = ((_a = url.match(
       /(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/watch\?.+&v=))([^\/&?]+)/
       // eslint-disable-line
-    )?.[1] || "";
+    )) == null ? void 0 : _a[1]) || "";
     const videoUuid = this.getVideoId(videoId);
     const cacheKey = `${this.cacheKey}/${videoUuid}`;
     const cached = await runtime.cacheManager.get(cacheKey);
@@ -322,8 +324,6 @@ var _VideoService = class _VideoService extends Service {
     }
   }
 };
-_VideoService.serviceType = ServiceType.VIDEO;
-var VideoService = _VideoService;
 
 // src/index.ts
 var browserPlugin = {
